@@ -22,6 +22,7 @@ builder.Services
 
 // Register application services.
 builder.Services.AddScoped<IArbeitNowService, ArbeitNowService>();
+builder.Services.AddScoped<ITrackrScraperService, TrackrScraperService>();
 
 var app = builder.Build();
 

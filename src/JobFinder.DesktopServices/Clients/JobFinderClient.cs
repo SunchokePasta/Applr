@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using JobFinder.DesktopServices.Interfaces;
+using JobFinder.Services.DTOs;
 using Microsoft.Extensions.Logging;
 
 namespace JobFinder.DesktopServices.Clients;
@@ -17,28 +18,34 @@ public sealed class JobFinderClient : IJobFinderClient
         _logger = logger;
     }
 
-    public async Task<string> GetJobsAsync(
+    public async Task<IReadOnlyList<ScrapedJobDto>> GetJobsAsync(
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "Calling JobFinder API connection endpoint.");
+            "Calling JobFinder API Trackr endpoint.");
 
-        var response = await _httpClient.GetFromJsonAsync<ConnectionResponse>(
-            "api/ArbeitNow",
-            cancellationToken);
-
-        if (response is null)
+        try
         {
-            throw new InvalidOperationException(
-                "JobFinder API returned an empty response.");
+            var response =
+                await _httpClient.GetFromJsonAsync<List<ScrapedJobDto>>(
+                    "api/Trackr",
+                    cancellationToken);
+
+            if (response is null)
+            {
+                throw new InvalidOperationException(
+                    "JobFinder API returned an empty response.");
+            }
+
+            return response;
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to get scraped jobs from JobFinder API.");
 
-        _logger.LogInformation(
-            "JobFinder API connection status: {Status}",
-            response.Status);
-
-        return response.Status;
+            throw;
+        }
     }
-
-    private sealed record ConnectionResponse(string Status);
 }

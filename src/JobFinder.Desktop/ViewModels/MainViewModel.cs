@@ -1,9 +1,10 @@
-﻿using System.ComponentModel;
-using System.Runtime.CompilerServices;
-using System.Windows.Input;
-using JobFinder.Desktop.Commands;
+﻿using JobFinder.Desktop.Commands;
 using JobFinder.DesktopServices.Interfaces;
+using JobFinder.Services.DTOs;
 using Microsoft.Extensions.Logging;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 
 namespace JobFinder.Desktop.ViewModels;
 
@@ -12,8 +13,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly IJobFinderClient _jobFinderClient;
     private readonly ILogger<MainWindowViewModel> _logger;
 
-    private string _connectionStatus = "Not connected";
-    private bool _isConnecting;
+    private bool _isLoading;
+    private string _statusMessage = "Ready";
 
     public MainWindowViewModel(
         IJobFinderClient jobFinderClient,
@@ -22,77 +23,86 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _jobFinderClient = jobFinderClient;
         _logger = logger;
 
-        TestConnectionCommand = new AsyncRelayCommand(
-            TestConnectionAsync,
-            () => !IsConnecting);
+        LoadJobsCommand = new AsyncRelayCommand(
+            LoadJobsAsync,
+            () => !IsLoading);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public string ConnectionStatus
+    public ObservableCollection<ScrapedJobDto> Jobs { get; } = [];
+
+    public bool IsLoading
     {
-        get => _connectionStatus;
+        get => _isLoading;
         private set
         {
-            if (_connectionStatus == value)
+            if (_isLoading == value)
             {
                 return;
             }
 
-            _connectionStatus = value;
+            _isLoading = value;
             OnPropertyChanged();
+
+            LoadJobsCommand.RaiseCanExecuteChanged();
         }
     }
 
-    public bool IsConnecting
+    public string StatusMessage
     {
-        get => _isConnecting;
+        get => _statusMessage;
         private set
         {
-            if (_isConnecting == value)
+            if (_statusMessage == value)
             {
                 return;
             }
 
-            _isConnecting = value;
+            _statusMessage = value;
             OnPropertyChanged();
-
-            TestConnectionCommand.RaiseCanExecuteChanged();
         }
     }
 
-    public AsyncRelayCommand TestConnectionCommand { get; }
+    public AsyncRelayCommand LoadJobsCommand { get; }
 
-    private async Task TestConnectionAsync()
+    private async Task LoadJobsAsync()
     {
         try
         {
-            IsConnecting = true;
-            ConnectionStatus = "Connecting...";
+            IsLoading = true;
+            StatusMessage = "Loading jobs...";
 
             _logger.LogInformation(
-                "Testing connection to JobFinder API.");
+                "Requesting scraped jobs from JobFinder API.");
 
-            var status =
+            var jobs =
                 await _jobFinderClient.GetJobsAsync();
 
-            ConnectionStatus = status;
+            Jobs.Clear();
+
+            foreach (var job in jobs)
+            {
+                Jobs.Add(job);
+            }
+
+            StatusMessage = $"Loaded {Jobs.Count} jobs.";
 
             _logger.LogInformation(
-                "JobFinder API connection test completed with status: {Status}",
-                status);
+                "Loaded {JobCount} scraped jobs.",
+                Jobs.Count);
         }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
-                "Failed to connect to JobFinder API.");
+                "Failed to load scraped jobs.");
 
-            ConnectionStatus = "Connection failed";
+            StatusMessage = "Failed to load jobs.";
         }
         finally
         {
-            IsConnecting = false;
+            IsLoading = false;
         }
     }
 

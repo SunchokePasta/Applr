@@ -5,12 +5,78 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:JobFinder.Desktop"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        Title="JobFinder"
+        Height="650"
+        Width="1200"
+        MinHeight="450"
+        MinWidth="900">
+
+    <Grid Margin="20">
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
         <TextBlock
-         Text="Desktop Shell is Ready"
-         HorizontalAlignment="Center"
-         VerticalAlignment="Center"
-         FontSize="24" />
+            Grid.Row="0"
+            Text="JobFinder"
+            FontSize="28"
+            FontWeight="Bold"
+            Margin="0,0,0,15" />
+
+        <Grid Grid.Row="1" Margin="0,0,0,15">
+
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Button
+                Grid.Column="0"
+                Content="Load Jobs"
+                Command="{Binding LoadJobsCommand}"
+                Padding="20,8"
+                MinWidth="110" />
+
+            <TextBlock
+                Grid.Column="1"
+                Text="{Binding StatusMessage}"
+                VerticalAlignment="Center"
+                Margin="15,0,0,0"
+                FontSize="14" />
+
+        </Grid>
+
+        <DataGrid
+            Grid.Row="2"
+            ItemsSource="{Binding Jobs}"
+            AutoGenerateColumns="True"
+            IsReadOnly="True"
+            CanUserAddRows="False"
+            CanUserDeleteRows="False"
+            CanUserResizeRows="False"
+            SelectionMode="Single"
+            SelectionUnit="FullRow"
+            HeadersVisibility="Column"
+            GridLinesVisibility="Horizontal">
+
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Setter Property="MinHeight" Value="35" />
+                </Style>
+            </DataGrid.RowStyle>
+
+            <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="FontWeight" Value="Bold" />
+                    <Setter Property="Padding" Value="8,6" />
+                </Style>
+            </DataGrid.ColumnHeaderStyle>
+
+        </DataGrid>
+
     </Grid>
+
 </Window>
