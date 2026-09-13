@@ -18,7 +18,7 @@ public sealed class JobFinderClient : IJobFinderClient
         _logger = logger;
     }
 
-    public async Task<IReadOnlyList<ScrapedJobDto>> GetJobsAsync(
+    public async Task<IReadOnlyList<DbJobDto>> GetJobsAsync(
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
@@ -27,7 +27,7 @@ public sealed class JobFinderClient : IJobFinderClient
         try
         {
             var response =
-                await _httpClient.GetFromJsonAsync<List<ScrapedJobDto>>(
+                await _httpClient.GetFromJsonAsync<List<DbJobDto>>(
                     "api/Trackr",
                     cancellationToken);
 

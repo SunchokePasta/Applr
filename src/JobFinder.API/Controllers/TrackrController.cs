@@ -1,4 +1,4 @@
-﻿using JobFinder.Services.DTOs;
+using JobFinder.Services.DTOs;
 using JobFinder.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,25 +8,25 @@ namespace JobFinder.API.Controllers;
 [Route("api/[controller]")]
 public sealed class TrackrController : ControllerBase
 {
-    private readonly ITrackrScraperService _trackrScraperService;
+    private readonly ITrackrService _trackrService;
     private readonly ILogger<TrackrController> _logger;
 
     public TrackrController(
-        ITrackrScraperService trackrScraperService,
+        ITrackrService trackrService,
         ILogger<TrackrController> logger)
     {
-        _trackrScraperService = trackrScraperService;
+        _trackrService = trackrService;
         _logger = logger;
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<ScrapedJobDto>>> Get(
+    public async Task<ActionResult<IReadOnlyList<DbJobDto>>> Get(
         CancellationToken cancellationToken)
     {
         _logger.LogInformation(
-            "Trackr scraper endpoint was called.");
+            "Trackr endpoint was called.");
 
-        var roles = await _trackrScraperService.GetRolesAsync(
+        var roles = await _trackrService.GetRolesAsync(
             cancellationToken);
 
         return Ok(roles);

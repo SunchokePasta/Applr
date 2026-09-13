@@ -24,13 +24,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _logger = logger;
 
         LoadJobsCommand = new AsyncRelayCommand(
-            LoadJobsAsync,
+            async () => await LoadJobsAsync(),
             () => !IsLoading);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public ObservableCollection<ScrapedJobDto> Jobs { get; } = [];
+    public ObservableCollection<DbJobDto> Jobs { get; } = [];
 
     public bool IsLoading
     {
@@ -66,7 +66,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public AsyncRelayCommand LoadJobsCommand { get; }
 
-    private async Task LoadJobsAsync()
+    public async Task<IReadOnlyList<DbJobDto>> LoadJobsAsync()
     {
         try
         {
@@ -91,6 +91,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _logger.LogInformation(
                 "Loaded {JobCount} scraped jobs.",
                 Jobs.Count);
+
+            return jobs;
         }
         catch (Exception ex)
         {
@@ -99,6 +101,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 "Failed to load scraped jobs.");
 
             StatusMessage = "Failed to load jobs.";
+            throw;
         }
         finally
         {

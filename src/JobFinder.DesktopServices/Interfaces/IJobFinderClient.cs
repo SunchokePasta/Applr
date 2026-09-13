@@ -4,6 +4,6 @@ namespace JobFinder.DesktopServices.Interfaces;
 
 public interface IJobFinderClient
 {
-    Task<IReadOnlyList<ScrapedJobDto>> GetJobsAsync(
+    Task<IReadOnlyList<DbJobDto>> GetJobsAsync(
         CancellationToken cancellationToken = default);
 }
