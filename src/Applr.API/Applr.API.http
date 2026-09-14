@@ -1,0 +1,13 @@
+@Applr.API_HostAddress = http://localhost:5049
+
+### Get live job listings from ArbeitNow (proxied through Applr.Services -> ArbeitNow public API)
+GET {{Applr.API_HostAddress}}/api/ArbeitNow
+Accept: application/json
+
+###
+
+### Get tracked jobs from the Trackr REST API (proxied through Applr.Services -> Applr.RestApi)
+GET {{Applr.API_HostAddress}}/api/Trackr
+Accept: application/json
+
+###
