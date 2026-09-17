@@ -28,7 +28,9 @@ interface WebViewMessage {
 }
 
 interface WebViewBridge {
-  postMessage(message: { type: "loadJobs" }): void;
+  postMessage(
+    message: { type: "loadJobs" } | { type: "openJobLink"; url: string }
+  ): void;
   addEventListener(event: "message", listener: (event: MessageEvent<WebViewMessage>) => void): void;
   removeEventListener(event: "message", listener: (event: MessageEvent<WebViewMessage>) => void): void;
 }

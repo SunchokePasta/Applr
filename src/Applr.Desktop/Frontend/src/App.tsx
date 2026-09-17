@@ -200,5 +200,26 @@ function Cell({ value }: { value?: string }) {
 }
 
 function LinkedCell({ value, url }: { value?: string; url?: string }) {
-  return <td>{url ? <a href={url} target="_blank">{value || url}</a> : value || "—"}</td>;
+  if (!url) {
+    return <td>{value || "—"}</td>;
+  }
+
+  // Opens in the native preview pane (MainWindow.xaml.cs) instead of a
+  // new browser window -- preventDefault stops the WebView2 default
+  // popup behaviour a target="_blank" link would otherwise trigger.
+  // href is kept anyway so the link still looks/behaves like a link
+  // (status bar preview, right-click "copy link", etc).
+  return (
+    <td>
+      <a
+        href={url}
+        onClick={(event) => {
+          event.preventDefault();
+          window.chrome?.webview?.postMessage({ type: "openJobLink", url });
+        }}
+      >
+        {value || url}
+      </a>
+    </td>
+  );
 }

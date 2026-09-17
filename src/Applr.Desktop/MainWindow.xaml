@@ -8,6 +8,36 @@
         MinHeight="450"
         MinWidth="900">
 
-    <wv2:WebView2 x:Name="ApplrWebView" />
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <!--
+                Job preview pane: collapsed (0-width) until a job link is
+                clicked, see MainWindow.xaml.cs. Its WebView2 runs on a
+                separate CoreWebView2Environment from ApplrWebView's (its
+                own user data folder) - kept isolated on purpose, since
+                this pane is expected to eventually host more than a
+                plain preview (the browser-use automation work discussed
+                for job-detail enrichment), not just share the main UI's
+                cookies/cache.
+            -->
+            <ColumnDefinition x:Name="JobPreviewColumn" Width="0" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Grid Grid.Column="0">
+            <wv2:WebView2 x:Name="JobPreviewWebView" />
+            <Button x:Name="CloseJobPreviewButton"
+                    Content="&#x2715;"
+                    Click="CloseJobPreviewButton_Click"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Width="32"
+                    Height="32"
+                    Margin="8"
+                    ToolTip="Close preview" />
+        </Grid>
+
+        <wv2:WebView2 x:Name="ApplrWebView" Grid.Column="1" />
+    </Grid>
 
 </Window>

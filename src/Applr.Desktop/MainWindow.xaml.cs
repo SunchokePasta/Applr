@@ -12,10 +12,17 @@ namespace Applr.Desktop;
 public partial class MainWindow : Window
 {
     private const string WebHostName = "applr.local";
+    private const double JobPreviewWidthPixels = 540;
     private static readonly JsonSerializerOptions WebJsonOptions =
         new(JsonSerializerDefaults.Web);
     private readonly MainWindowViewModel _viewModel;
     private readonly ILogger<MainWindow> _logger;
+
+    // Created lazily on the first job link click, not at startup -- most
+    // sessions may never open the preview pane. Kept separate from
+    // ApplrWebView's (default) environment on purpose: see the comment
+    // on JobPreviewColumn in MainWindow.xaml.
+    private CoreWebView2Environment? _jobPreviewEnvironment;
 
     public MainWindow(
         MainWindowViewModel viewModel,
@@ -71,21 +78,43 @@ public partial class MainWindow : Window
         try
         {
             using var message = JsonDocument.Parse(e.WebMessageAsJson);
-            if (!message.RootElement.TryGetProperty("type", out var type) ||
-                type.GetString() != "loadJobs")
+            if (!message.RootElement.TryGetProperty("type", out var type))
             {
                 return;
             }
 
-            var (existingJobs, newJobs) = await _viewModel.LoadJobsAsync();
-            SendMessageToWebUi(new { type = "jobsLoaded", existingJobs, newJobs });
+            switch (type.GetString())
+            {
+                case "loadJobs":
+                    var (existingJobs, newJobs) = await _viewModel.LoadJobsAsync();
+                    SendMessageToWebUi(new { type = "jobsLoaded", existingJobs, newJobs });
+                    break;
+
+                case "openJobLink":
+                    // Handled entirely on this side -- there is no
+                    // matching "jobLinkOpened"/"jobLinkFailed" reply,
+                    // because the pane it opens into is native UI
+                    // (JobPreviewWebView), not something the web content
+                    // renders. OpenJobPreviewAsync swallows its own
+                    // failures for the same reason PromoteNewJobsAsync
+                    // does: a failed preview shouldn't disturb the jobs
+                    // table this message came from.
+                    if (message.RootElement.TryGetProperty("url", out var urlElement) &&
+                        urlElement.GetString() is { Length: > 0 } url)
+                    {
+                        await OpenJobPreviewAsync(url);
+                    }
+
+                    break;
+            }
         }
         catch (ApplrApiException exception)
         {
             // Already logged, already phrased for a human, already
             // carrying a reference -- the whole chain from Applr.RestApi
             // through Applr.API through ApplrClient exists so that this
-            // block has nothing left to decide.
+            // block has nothing left to decide. Only the "loadJobs" case
+            // can throw this.
             SendMessageToWebUi(new
             {
                 type = "jobsFailed",
@@ -131,6 +160,88 @@ public partial class MainWindow : Window
             _logger.LogError(
                 exception,
                 "Could not post a message to the web UI.");
+        }
+    }
+
+    /// <summary>
+    /// Creates the job preview pane's CoreWebView2Environment on first
+    /// use, with its own user data folder under %LOCALAPPDATA% -- same
+    /// fallback location logging already uses for Applr.Desktop, kept
+    /// under a distinct subfolder so this pane's cookies/cache/storage
+    /// never mix with ApplrWebView's default environment.
+    /// </summary>
+    private async Task EnsureJobPreviewInitializedAsync()
+    {
+        if (JobPreviewWebView.CoreWebView2 is not null)
+        {
+            return;
+        }
+
+        if (_jobPreviewEnvironment is null)
+        {
+            var userDataFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Applr",
+                "WebView2",
+                "JobPreview");
+
+            var options = new CoreWebView2EnvironmentOptions(
+                "--remote-debugging-port=9222"
+            );
+
+            _jobPreviewEnvironment = await CoreWebView2Environment.CreateAsync(
+                browserExecutableFolder: null,
+                userDataFolder: userDataFolder,
+                options);
+        }
+
+        await JobPreviewWebView.EnsureCoreWebView2Async(_jobPreviewEnvironment);
+    }
+
+    private async Task OpenJobPreviewAsync(string url)
+    {
+        try
+        {
+            await EnsureJobPreviewInitializedAsync();
+
+            JobPreviewWebView.CoreWebView2.Navigate(url);
+            JobPreviewColumn.Width = new GridLength(JobPreviewWidthPixels);
+        }
+        catch (Exception exception)
+        {
+            // Swallowed rather than rethrown -- see the "openJobLink"
+            // case in WebMessageReceived for why. Logged with its own
+            // reference so a broken preview is still diagnosable even
+            // though nothing on screen mentions it.
+            var reference = ErrorReference.New();
+
+            _logger.LogError(
+                exception,
+                "[{Reference}] Could not open the job preview pane for {Url}.",
+                reference,
+                url);
+
+            JobPreviewColumn.Width = new GridLength(0);
+        }
+    }
+
+    private void CloseJobPreviewButton_Click(object sender, RoutedEventArgs e)
+    {
+        JobPreviewColumn.Width = new GridLength(0);
+
+        try
+        {
+            JobPreviewWebView.CoreWebView2?.Navigate("about:blank");
+        }
+        catch (Exception exception)
+        {
+            // Not worth a reference or telling the user anything -- the
+            // pane is already closed either way. This only affects
+            // whether it's still holding the previous page in memory
+            // until it's opened again.
+            _logger.LogWarning(
+                exception,
+                "Could not clear the job preview pane after closing it.");
         }
     }
 }
