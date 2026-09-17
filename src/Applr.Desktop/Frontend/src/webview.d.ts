@@ -1,28 +1,30 @@
-interface DbJobDto {
+interface JobDto {
   id: number;
-  jobUrl: string;
+  rawJobId: number;
+  companyId: number;
   jobTitle: string;
+  jobUrl: string;
   companyName: string;
-  companyUrl?: string;
-  status?: string;
+  status: string;
   postedDate?: string;
-  postedDateRaw?: string;
   closeDate?: string;
-  closeDateRaw?: string;
-  cvRequired: boolean;
-  coverLetterRequired: boolean;
-  writtenAnswersRequired: boolean;
-  visaSponsorship: boolean;
-  rawCells?: string[];
-  jobIdentityHash: string;
   createdOn: string;
   lastUpdated: string;
 }
 
 interface WebViewMessage {
   type: "jobsLoaded" | "jobsFailed";
-  jobs?: DbJobDto[];
+  existingJobs?: JobDto[];
+  newJobs?: JobDto[];
+  /** Already safe to display: phrased for a user by whichever tier failed. */
   message?: string;
+  /**
+   * Ties what's on screen to a specific line in a log file. The same
+   * value appears in Applr.RestApi's log, Applr.API's log and the
+   * desktop log, depending on how far the request got -- so quoting it
+   * is enough to find the stack trace.
+   */
+  reference?: string;
 }
 
 interface WebViewBridge {

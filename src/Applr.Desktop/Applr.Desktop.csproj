@@ -16,6 +16,19 @@
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+		<!--
+			A WinExe has no console, so the default host logging went
+			nowhere: every _logger.LogError in MainWindowViewModel and
+			ApplrClient was formatted and then discarded. These four give
+			the desktop app the same rolling file log the two APIs have.
+			Serilog.Extensions.Hosting is what provides .UseSerilog() on
+			the host builder; Sinks.Debug keeps output in the VS Output
+			window while debugging.
+		-->
+		<PackageReference Include="Serilog" Version="4.2.0" />
+		<PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.0" />
+		<PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
+		<PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>

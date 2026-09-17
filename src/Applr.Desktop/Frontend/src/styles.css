@@ -47,7 +47,19 @@ button:disabled { cursor: wait; opacity: .65; }
 .loading-track span { animation: loading-sweep 1.15s ease-in-out infinite; background: var(--sage); display: block; height: 100%; width: 42%; }
 @keyframes loading-sweep { from { transform: translateX(-110%); } to { transform: translateX(265%); } }
 
+/* A failed load, as distinct from a slow one. Deliberately not styled
+   like the loading panel: it is terminal, it carries a reference id,
+   and it offers the one action that makes sense. */
+.error-panel { background: #fff7f6; border: 1px solid #e7bcb6; border-left: 4px solid #b3453a; border-radius: 12px; padding: 20px 24px; }
+.error-message { margin: 0; color: #7d2b23; font-weight: 600; }
+.error-reference { margin: 8px 0 16px; color: #8a5b55; font-size: 13px; }
+.error-reference code { background: #f6e5e2; border-radius: 4px; font-family: "Cascadia Mono", Consolas, monospace; padding: 2px 6px; user-select: all; }
+.error-panel button { background: #b3453a; }
+.error-panel button:hover:not(:disabled) { background: #93362d; }
+.error-panel + .jobs-section { margin-top: 24px; }
+
 .jobs-section { background: white; border: 1px solid #d9e0eb; border-radius: 12px; overflow: hidden; }
+.jobs-section + .jobs-section { margin-top: 24px; }
 h2 { margin: 0; padding: 18px 20px; font-size: 18px; border-bottom: 1px solid #d9e0eb; }
 .table-wrap { overflow: auto; }
 table { width: 100%; border-collapse: collapse; text-align: left; }

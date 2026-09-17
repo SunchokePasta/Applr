@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+type LoadError = {
+  message: string;
+  reference?: string;
+};
+
 export default function App() {
   const [showIntro, setShowIntro] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
-  const [jobs, setJobs] = useState<DbJobDto[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [existingJobs, setExistingJobs] = useState<JobDto[] | null>(null);
+  const [newJobs, setNewJobs] = useState<JobDto[] | null>(null);
+  const [error, setError] = useState<LoadError | null>(null);
   const loadingRef = useRef(false);
 
   const loadJobs = useCallback(() => {
@@ -15,7 +21,8 @@ export default function App() {
     loadingRef.current = true;
     setIsLoading(true);
     setError(null);
-    setJobs(null);
+    setExistingJobs(null);
+    setNewJobs(null);
     window.chrome?.webview?.postMessage({ type: "loadJobs" });
   }, []);
 
@@ -23,14 +30,22 @@ export default function App() {
     const onMessage = (event: MessageEvent<WebViewMessage>) => {
       if (event.data.type === "jobsLoaded") {
         loadingRef.current = false;
-        setJobs(event.data.jobs ?? []);
+        setExistingJobs(event.data.existingJobs ?? []);
+        setNewJobs(event.data.newJobs ?? []);
         setIsLoading(false);
         setShowIntro(false);
       }
 
       if (event.data.type === "jobsFailed") {
         loadingRef.current = false;
-        setError(event.data.message ?? "Jobs could not be loaded. Please try again.");
+        // The message arrives already phrased for a person -- it was
+        // written by whichever tier actually failed (Applr.RestApi,
+        // Applr.API or the desktop app) and passed down unchanged. The
+        // reference beside it is the same id on the matching log line.
+        setError({
+          message: event.data.message ?? "Jobs could not be loaded. Please try again.",
+          reference: event.data.reference,
+        });
         setIsLoading(false);
         setShowIntro(false);
       }
@@ -60,8 +75,36 @@ export default function App() {
         </header>
 
         {isLoading && <LoadingPanel />}
-        {error && <LoadingPanel message={error} isBusy={false} />}
-        {jobs && <JobsTable jobs={jobs} />}
+        {error && <ErrorPanel error={error} onRetry={loadJobs} />}
+
+        {/*
+          Top table: New jobs (status "New", from GET jobs/new). Shown
+          whenever a load has completed, even at 0 -- while we're
+          chasing the "nothing's showing" bug, a visible "New (0)" tells
+          you the call returned an empty array, versus this section not
+          rendering at all telling you nothing about why.
+        */}
+        {newJobs && (
+          <JobsTable
+            headingId="new-jobs-heading"
+            title={`New (${newJobs.length})`}
+            jobs={newJobs}
+            emptyMessage="No new jobs were returned."
+          />
+        )}
+
+        {/*
+          Bottom table: existing jobs (status "Unreviewed", from GET
+          jobs/existing) -- always there once a load has happened.
+        */}
+        {existingJobs && (
+          <JobsTable
+            headingId="existing-jobs-heading"
+            title={`Existing (${existingJobs.length})`}
+            jobs={existingJobs}
+            emptyMessage="No jobs were returned."
+          />
+        )}
       </main>
     </>
   );
@@ -95,24 +138,54 @@ function LoadingPanel({ message = "Jobs loading", isBusy = true }: { message?: s
   );
 }
 
-function JobsTable({ jobs }: { jobs: DbJobDto[] }) {
+/**
+ * Its own component rather than a reused LoadingPanel: a failure needs
+ * role="alert", a retry affordance, and somewhere to put the reference
+ * id -- none of which belong on a spinner.
+ */
+function ErrorPanel({ error, onRetry }: { error: LoadError; onRetry: () => void }) {
   return (
-    <section className="jobs-section" aria-labelledby="jobs-heading">
-      <h2 id="jobs-heading">Jobs</h2>
+    <section className="error-panel" role="alert">
+      <p className="error-message">{error.message}</p>
+      {error.reference && (
+        <p className="error-reference">
+          Reference: <code>{error.reference}</code>
+        </p>
+      )}
+      <button type="button" onClick={onRetry}>
+        Try again
+      </button>
+    </section>
+  );
+}
+
+function JobsTable({
+  headingId,
+  title,
+  jobs,
+  emptyMessage,
+}: {
+  headingId: string;
+  title: string;
+  jobs: JobDto[];
+  emptyMessage: string;
+}) {
+  return (
+    <section className="jobs-section" aria-labelledby={headingId}>
+      <h2 id={headingId}>{title}</h2>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Company</th><th>Role</th><th>Status</th><th>Posted</th><th>Closes</th><th>Visa</th></tr></thead>
+          <thead><tr><th>Company</th><th>Role</th><th>Status</th><th>Posted</th><th>Closes</th></tr></thead>
           <tbody>
             {jobs.length === 0 ? (
-              <tr className="empty-row"><td colSpan={6}>No jobs were returned.</td></tr>
-            ) : jobs.map((job, index) => (
-              <tr key={`${job.jobUrl ?? job.jobTitle}-${index}`}>
-                <LinkedCell value={job.companyName} url={job.companyUrl} />
+              <tr className="empty-row"><td colSpan={5}>{emptyMessage}</td></tr>
+            ) : jobs.map((job) => (
+              <tr key={job.id}>
+                <Cell value={job.companyName} />
                 <LinkedCell value={job.jobTitle} url={job.jobUrl} />
                 <Cell value={job.status} />
-                <Cell value={job.postedDateRaw} />
-                <Cell value={job.closeDateRaw} />
-                <Cell value={job.visaSponsorship ? "Available" : "Not listed"} />
+                <Cell value={job.postedDate} />
+                <Cell value={job.closeDate} />
               </tr>
             ))}
           </tbody>
