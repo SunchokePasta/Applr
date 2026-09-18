@@ -115,15 +115,6 @@ public sealed class ExceptionHandlingMiddleware(
             context.RequestAborted);
     }
 
-    /// <summary>
-    /// Exception type -> (status code, message the user will read on the
-    /// front end). Order matters here: ApiException derives from
-    /// HttpRequestException, and TaskCanceledException derives from
-    /// OperationCanceledException, so the specific arms have to come
-    /// first. Keeping it as one switch expression is precisely so that
-    /// ordering is visible in a single place instead of spread over a
-    /// stack of catch blocks.
-    /// </summary>
     private static (int Status, string Message) Describe(Exception exception) =>
         exception switch
         {
@@ -136,27 +127,18 @@ public sealed class ExceptionHandlingMiddleware(
                 (StatusCodes.Status502BadGateway,
                     "The jobs service returned an error. Nothing was changed."),
 
-            // Upstream never answered: process not running, wrong port,
-            // DNS, connection reset. By far the most likely failure when
-            // Applr.RestApi simply hasn't been started.
             HttpRequestException =>
                 (StatusCodes.Status503ServiceUnavailable,
                     "The jobs service could not be reached. Check that Applr.RestApi is running."),
 
-            // HttpClient's own timeout surfaces as TaskCanceledException
-            // with no cancellation requested; the caller-cancelled case
-            // was already handled before we got here.
             TaskCanceledException or TimeoutException =>
                 (StatusCodes.Status504GatewayTimeout,
                     "The jobs service took too long to respond."),
 
-            // Upstream answered with something that isn't the JSON we
-            // expect -- a schema drift between the two solutions.
             System.Text.Json.JsonException =>
                 (StatusCodes.Status502BadGateway,
                     "The jobs service sent back data Applr couldn't read."),
 
-            // Thrown by Program.cs for missing configuration.
             InvalidOperationException =>
                 (StatusCodes.Status500InternalServerError,
                     "Applr's API is misconfigured."),

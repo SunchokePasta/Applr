@@ -6,8 +6,26 @@ Accept: application/json
 
 ###
 
-### Get tracked jobs from the Trackr REST API (proxied through Applr.Services -> Applr.RestApi)
-GET {{Applr.API_HostAddress}}/api/Trackr
+### Get existing tracked jobs from the Trackr REST API (proxied through Applr.Services -> Applr.RestApi)
+GET {{Applr.API_HostAddress}}/api/Trackr/jobs/existing
 Accept: application/json
+
+###
+
+### Get new (not yet promoted) tracked jobs from the Trackr REST API
+GET {{Applr.API_HostAddress}}/api/Trackr/jobs/new
+Accept: application/json
+
+###
+
+### Promote a set of "new" jobs to "existing" by job id
+POST {{Applr.API_HostAddress}}/api/Trackr/jobs/promote-new
+Content-Type: application/json
+
+[
+  1,
+  2,
+  3
+]
 
 ###

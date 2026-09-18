@@ -4,20 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Applr.API.Controllers;
 
-/// <summary>
-/// The desktop app's read/write surface over Applr.RestApi's jobs
-/// endpoints.
-///
-/// There is no db-sync action here: TrackrScraper/Scraper.py posts to
-/// Applr.RestApi's raw-jobs/db-sync directly after every scrape, so an
-/// endpoint on this controller would have had no caller. See
-/// claude/exception-handling-and-logging.md in the project for the
-/// boundary this draws -- this API is the desktop app's
-/// backend-for-frontend, not a general gateway to the REST API.
-///
-/// No try/catch in these actions on purpose: ExceptionHandlingMiddleware
-/// catches, logs and translates whatever escapes them.
-/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public sealed class TrackrController : ControllerBase
