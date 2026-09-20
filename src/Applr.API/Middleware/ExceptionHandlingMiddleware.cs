@@ -5,25 +5,6 @@ using Refit;
 
 namespace Applr.API.Middleware;
 
-/// <summary>
-/// One place where every unhandled exception in this API is caught,
-/// logged with a reference id, and turned into an
-/// <see cref="ApiErrorResponse"/> the desktop client can show the user.
-/// Registered first in the pipeline (see Program.cs) so it wraps
-/// everything downstream.
-///
-/// This API is a facade over Applr.RestApi and ArbeitNow, so most of
-/// what lands here is somebody else's outage arriving as a Refit
-/// ApiException or an HttpRequestException. The job of the mapping below
-/// is to say *which* hop broke in terms a person can act on ("the jobs
-/// service isn't running") rather than surfacing
-/// "System.Net.Http.HttpRequestException: Connection refused" to a
-/// React table.
-///
-/// Because this exists, TrackrService/ArbeitNowService no longer need
-/// try/catch-log-rethrow around every call: an exception that escapes
-/// them is logged exactly once, here, with the request path attached.
-/// </summary>
 public sealed class ExceptionHandlingMiddleware(
     RequestDelegate next,
     ILogger<ExceptionHandlingMiddleware> logger)
