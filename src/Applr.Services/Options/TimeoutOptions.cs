@@ -16,4 +16,7 @@ public sealed class TimeoutOptions : AppOptionsBase
 
     /// <summary>Timeout, in seconds, for calls to Applr.RestApi (the Trackr REST API).</summary>
     public int TrackrSeconds { get; set; } = 30;
+
+    /// <summary>Timeout, in seconds, for calls to the Gmail API.</summary>
+    public int GmailSeconds { get; set; } = 30;
 }

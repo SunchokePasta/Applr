@@ -64,8 +64,21 @@ builder.Services
         client.Timeout = TimeSpan.FromSeconds(timeoutOptions.TrackrSeconds);
     });
 
+builder.Services
+    .AddRefitClient<IGmailApi>()
+    .ConfigureHttpClient(client =>
+    {
+        var baseUrl = builder.Configuration["GmailApiBaseUrl"]
+            ?? throw new InvalidOperationException(
+                "GmailApiBaseUrl is not configured.");
+
+        client.BaseAddress = new Uri(baseUrl);
+        client.Timeout = TimeSpan.FromSeconds(timeoutOptions.GmailSeconds);
+    });
+
 builder.Services.AddScoped<IArbeitNowService, ArbeitNowService>();
 builder.Services.AddScoped<ITrackrService, TrackrService>();
+builder.Services.AddScoped<IGmailService, GmailService>();
 
 var app = builder.Build();
 

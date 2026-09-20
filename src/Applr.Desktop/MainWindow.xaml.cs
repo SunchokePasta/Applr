@@ -1,9 +1,14 @@
 using System.IO;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using Applr.Desktop.ViewModels;
 using Applr.DesktopServices.Exceptions;
+using Applr.DesktopServices.Interfaces;
 using Applr.Services.Diagnostics;
+using Applr.Services.Options;
 using Microsoft.Extensions.Logging;
 using Microsoft.Web.WebView2.Core;
 
@@ -12,10 +17,17 @@ namespace Applr.Desktop;
 public partial class MainWindow : Window
 {
     private const string WebHostName = "applr.local";
-    private const double JobPreviewWidthPixels = 540;
+    private const double SplitterWidthPixels = 6;
+    // Matches ApplrColumn's MinWidth in the XAML. Held here too because
+    // full screen has to drop it to zero and put it back afterwards.
+    private const double ApplrMinimumWidthPixels = 380;
+    private const string FullScreenGlyph = "";
+    private const string ExitFullScreenGlyph = "";
     private static readonly JsonSerializerOptions WebJsonOptions =
         new(JsonSerializerDefaults.Web);
     private readonly MainWindowViewModel _viewModel;
+    private readonly IApplrFillerClient _fillerClient;
+    private readonly JobPreviewOptions _jobPreviewOptions;
     private readonly ILogger<MainWindow> _logger;
 
     // Created lazily on the first job link click, not at startup -- most
@@ -24,13 +36,36 @@ public partial class MainWindow : Window
     // on JobPreviewColumn in MainWindow.xaml.
     private CoreWebView2Environment? _jobPreviewEnvironment;
 
+    // The pane's width in its ordinary (non-full-screen) state. Held here
+    // rather than read back off the column because full screen sets that
+    // column to Star, which loses the pixel width the user dragged to.
+    private double _jobPreviewRestoreWidth;
+
+    private bool _jobPreviewIsFullScreen;
+
     public MainWindow(
         MainWindowViewModel viewModel,
+        IApplrFillerClient fillerClient,
+        JobPreviewOptions jobPreviewOptions,
         ILogger<MainWindow> logger)
     {
         InitializeComponent();
         _viewModel = viewModel;
+        _fillerClient = fillerClient;
+        _jobPreviewOptions = jobPreviewOptions;
         _logger = logger;
+        _jobPreviewRestoreWidth = jobPreviewOptions.WidthPixels;
+
+        // Esc and F11 reach these only while focus is on the chrome bar or
+        // the window itself. A WebView2 is a native child window and keeps
+        // the keystrokes it receives, so with the cursor in the web content
+        // the buttons are the way out -- which is why they are in a bar of
+        // their own rather than overlaid on a page that paints over them.
+        InputBindings.Add(new KeyBinding(
+            new RelayCommand(CloseJobPreview), Key.Escape, ModifierKeys.None));
+        InputBindings.Add(new KeyBinding(
+            new RelayCommand(ToggleJobPreviewFullScreen), Key.F11, ModifierKeys.None));
+
         Loaded += MainWindow_Loaded;
     }
 
@@ -95,14 +130,49 @@ public partial class MainWindow : Window
                     // matching "jobLinkOpened"/"jobLinkFailed" reply,
                     // because the pane it opens into is native UI
                     // (JobPreviewWebView), not something the web content
-                    // renders. OpenJobPreviewAsync swallows its own
-                    // failures for the same reason PromoteNewJobsAsync
-                    // does: a failed preview shouldn't disturb the jobs
-                    // table this message came from.
+                    // renders. The swallow lives in OpenJobPreviewAsync
+                    // for the same reason PromoteNewJobsAsync has one: a
+                    // failed preview shouldn't disturb the jobs table
+                    // this message came from.
                     if (message.RootElement.TryGetProperty("url", out var urlElement) &&
                         urlElement.GetString() is { Length: > 0 } url)
                     {
                         await OpenJobPreviewAsync(url);
+                    }
+
+                    break;
+
+                case "applyToJob":
+                    // Apply now means "open this posting, then fill it".
+                    // The url travels with the message so the pane lands on
+                    // the right page and ApplrFiller can be told which page
+                    // that is, rather than filling whichever one happened to
+                    // be newest.
+                    if (message.RootElement.TryGetProperty("jobId", out var jobIdElement) &&
+                        jobIdElement.TryGetUInt32(out var jobId))
+                    {
+                        var applyUrl =
+                            message.RootElement.TryGetProperty("url", out var applyUrlElement) &&
+                            applyUrlElement.ValueKind == JsonValueKind.String
+                                ? applyUrlElement.GetString()
+                                : null;
+
+                        await ApplyToJobAsync(jobId, applyUrl);
+                    }
+                    else
+                    {
+                        // This used to fall through in silence. The row that
+                        // sent the message is already showing "Applying" and
+                        // its own guard stops a second click, so no reply
+                        // left it stuck until the app restarted. There is no
+                        // jobId to answer to here -- the web UI's watchdog
+                        // releases the row -- so this line exists to make the
+                        // cause findable when it does.
+                        _logger.LogError(
+                            "[{Reference}] An applyToJob message arrived with no usable " +
+                            "jobId and was ignored: {Message}",
+                            ErrorReference.New(),
+                            e.WebMessageAsJson);
                     }
 
                     break;
@@ -144,6 +214,94 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Opens the posting in the preview pane, waits for it to finish loading,
+    /// then has ApplrFiller fill it and reports the outcome back to the row
+    /// that asked.
+    ///
+    /// The wait is the point. Navigate() returns as soon as the navigation is
+    /// queued, so filling straight after it would hand ApplrFiller whatever
+    /// the pane had open a moment ago -- most often the previous job's form.
+    ///
+    /// Handles its own failures rather than letting them reach
+    /// WebMessageReceived's catch blocks: those answer with "jobsFailed",
+    /// which would replace the whole jobs table with an error panel because
+    /// one row's fill did not work. An applyFailed carrying the same message
+    /// and reference keeps the failure on the row it belongs to.
+    /// </summary>
+    private async Task ApplyToJobAsync(uint jobId, string? url)
+    {
+        try
+        {
+            // The url that comes back is the one the browser settled on,
+            // which after a job board's redirects is often not the one asked
+            // for. Passing that on is what lets ApplrFiller match the page
+            // exactly instead of falling back to a guess.
+            var openUrl = string.IsNullOrWhiteSpace(url)
+                ? null
+                : await ShowJobInPreviewAsync(url);
+
+            var result = await _fillerClient.ApplyAsync(jobId, openUrl);
+
+            SendMessageToWebUi(new
+            {
+                type = "applyFinished",
+                jobId,
+                filled = result.Filled,
+                notFilled = result.NotFilled,
+                unmatchedLabels = result.UnmatchedLabels
+            });
+        }
+        catch (ApplrApiException exception)
+        {
+            SendMessageToWebUi(new
+            {
+                type = "applyFailed",
+                jobId,
+                message = exception.UserMessage,
+                reference = exception.Reference
+            });
+        }
+        catch (TimeoutException exception)
+        {
+            var reference = ErrorReference.New();
+
+            _logger.LogError(
+                exception,
+                "[{Reference}] The posting for job {JobId} did not finish loading within " +
+                "{Seconds}s, so nothing was filled.",
+                reference,
+                jobId,
+                _jobPreviewOptions.NavigationTimeoutSeconds);
+
+            SendMessageToWebUi(new
+            {
+                type = "applyFailed",
+                jobId,
+                message = "The job posting took too long to load, so nothing was filled.",
+                reference
+            });
+        }
+        catch (Exception exception)
+        {
+            var reference = ErrorReference.New();
+
+            _logger.LogError(
+                exception,
+                "[{Reference}] Filling the form for job {JobId} failed.",
+                reference,
+                jobId);
+
+            SendMessageToWebUi(new
+            {
+                type = "applyFailed",
+                jobId,
+                message = "Something went wrong filling the form.",
+                reference
+            });
+        }
+    }
+
     private void SendMessageToWebUi(object message)
     {
         try
@@ -169,6 +327,10 @@ public partial class MainWindow : Window
     /// fallback location logging already uses for Applr.Desktop, kept
     /// under a distinct subfolder so this pane's cookies/cache/storage
     /// never mix with ApplrWebView's default environment.
+    ///
+    /// The debugging port comes from JobPreview:RemoteDebuggingPort rather
+    /// than a literal: ApplrFiller connects to it by number, and two copies
+    /// of Applr on one machine cannot both hold the same one.
     /// </summary>
     private async Task EnsureJobPreviewInitializedAsync()
     {
@@ -186,7 +348,7 @@ public partial class MainWindow : Window
                 "JobPreview");
 
             var options = new CoreWebView2EnvironmentOptions(
-                "--remote-debugging-port=9222"
+                $"--remote-debugging-port={_jobPreviewOptions.RemoteDebuggingPort}"
             );
 
             _jobPreviewEnvironment = await CoreWebView2Environment.CreateAsync(
@@ -198,14 +360,61 @@ public partial class MainWindow : Window
         await JobPreviewWebView.EnsureCoreWebView2Async(_jobPreviewEnvironment);
     }
 
+    /// <summary>
+    /// Navigates the pane and does not return until the page has finished
+    /// loading, answering with the url the browser actually ended on.
+    /// Throws on a failed or slow navigation, so a caller that depends on
+    /// the page being there (Apply) can say so, and one that does not
+    /// (a link click) can swallow it.
+    /// </summary>
+    private async Task<string> ShowJobInPreviewAsync(string url)
+    {
+        await EnsureJobPreviewInitializedAsync();
+
+        RevealJobPreviewPane();
+        JobPreviewAddress.Text = url;
+
+        var completion = new TaskCompletionSource<CoreWebView2NavigationCompletedEventArgs>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void OnNavigationCompleted(
+            object? sender,
+            CoreWebView2NavigationCompletedEventArgs args) =>
+            completion.TrySetResult(args);
+
+        // Top-level only: frames raise FrameNavigationCompleted instead, so
+        // an ad iframe finishing first cannot be mistaken for the page.
+        JobPreviewWebView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
+
+        try
+        {
+            JobPreviewWebView.CoreWebView2.Navigate(url);
+
+            var completed = await completion.Task.WaitAsync(
+                TimeSpan.FromSeconds(_jobPreviewOptions.NavigationTimeoutSeconds));
+
+            if (!completed.IsSuccess)
+            {
+                throw new InvalidOperationException(
+                    $"The browser could not load {url} ({completed.WebErrorStatus}).");
+            }
+        }
+        finally
+        {
+            JobPreviewWebView.CoreWebView2.NavigationCompleted -= OnNavigationCompleted;
+        }
+
+        var landedOn = JobPreviewWebView.CoreWebView2.Source;
+        JobPreviewAddress.Text = landedOn;
+
+        return landedOn;
+    }
+
     private async Task OpenJobPreviewAsync(string url)
     {
         try
         {
-            await EnsureJobPreviewInitializedAsync();
-
-            JobPreviewWebView.CoreWebView2.Navigate(url);
-            JobPreviewColumn.Width = new GridLength(JobPreviewWidthPixels);
+            await ShowJobInPreviewAsync(url);
         }
         catch (Exception exception)
         {
@@ -221,13 +430,46 @@ public partial class MainWindow : Window
                 reference,
                 url);
 
-            JobPreviewColumn.Width = new GridLength(0);
+            CloseJobPreview();
         }
     }
 
-    private void CloseJobPreviewButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Puts the pane on screen at whatever width it was last left at,
+    /// leaving a full-screen pane full screen.
+    /// </summary>
+    private void RevealJobPreviewPane()
     {
+        if (_jobPreviewIsFullScreen)
+        {
+            return;
+        }
+
+        JobPreviewColumn.Width = new GridLength(_jobPreviewRestoreWidth);
+        JobPreviewSplitterColumn.Width = new GridLength(SplitterWidthPixels);
+    }
+
+    private bool IsJobPreviewOpen =>
+        _jobPreviewIsFullScreen || JobPreviewColumn.Width.Value > 0;
+
+    private void CloseJobPreviewButton_Click(object sender, RoutedEventArgs e) =>
+        CloseJobPreview();
+
+    private void CloseJobPreview()
+    {
+        if (!IsJobPreviewOpen)
+        {
+            return;
+        }
+
+        if (_jobPreviewIsFullScreen)
+        {
+            SetJobPreviewFullScreen(false);
+        }
+
         JobPreviewColumn.Width = new GridLength(0);
+        JobPreviewSplitterColumn.Width = new GridLength(0);
+        JobPreviewAddress.Text = string.Empty;
 
         try
         {
@@ -244,4 +486,94 @@ public partial class MainWindow : Window
                 "Could not clear the job preview pane after closing it.");
         }
     }
+
+    private void ToggleJobPreviewFullScreenButton_Click(object sender, RoutedEventArgs e) =>
+        ToggleJobPreviewFullScreen();
+
+    private void ToggleJobPreviewFullScreen()
+    {
+        if (!IsJobPreviewOpen)
+        {
+            return;
+        }
+
+        SetJobPreviewFullScreen(!_jobPreviewIsFullScreen);
+    }
+
+    /// <summary>
+    /// Full screen is the jobs table's column going to zero, not a window
+    /// state change: the pane is one column of a Grid, so giving it all the
+    /// width is the whole of it. ApplrColumn's MinWidth has to go with it,
+    /// otherwise the minimum holds the table open at 380px.
+    /// </summary>
+    private void SetJobPreviewFullScreen(bool isFullScreen)
+    {
+        _jobPreviewIsFullScreen = isFullScreen;
+
+        if (isFullScreen)
+        {
+            ApplrColumn.MinWidth = 0;
+            ApplrColumn.Width = new GridLength(0);
+            JobPreviewSplitterColumn.Width = new GridLength(0);
+            JobPreviewColumn.Width = new GridLength(1, GridUnitType.Star);
+
+            ToggleJobPreviewFullScreenButton.Content = ExitFullScreenGlyph;
+            ToggleJobPreviewFullScreenButton.ToolTip = "Exit full screen";
+            AutomationProperties.SetName(
+                ToggleJobPreviewFullScreenButton, "Exit full screen");
+
+            return;
+        }
+
+        ApplrColumn.MinWidth = ApplrMinimumWidthPixels;
+        ApplrColumn.Width = new GridLength(1, GridUnitType.Star);
+        JobPreviewColumn.Width = new GridLength(_jobPreviewRestoreWidth);
+        JobPreviewSplitterColumn.Width = new GridLength(SplitterWidthPixels);
+
+        ToggleJobPreviewFullScreenButton.Content = FullScreenGlyph;
+        ToggleJobPreviewFullScreenButton.ToolTip = "Full screen";
+        AutomationProperties.SetName(
+            ToggleJobPreviewFullScreenButton, "Full screen");
+    }
+
+    /// <summary>
+    /// The floor the splitter cannot be dragged below. It is enforced here
+    /// rather than as the column's MinWidth because that same column has to
+    /// be able to reach zero when the pane closes, and a MinWidth would stop
+    /// it -- so the two states would fight each other.
+    /// </summary>
+    private void JobPreviewSplitter_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (_jobPreviewIsFullScreen)
+        {
+            return;
+        }
+
+        if (JobPreviewColumn.Width.Value < _jobPreviewOptions.MinimumWidthPixels)
+        {
+            JobPreviewColumn.Width =
+                new GridLength(_jobPreviewOptions.MinimumWidthPixels);
+        }
+
+        _jobPreviewRestoreWidth = JobPreviewColumn.Width.Value;
+    }
+}
+
+/// <summary>
+/// The smallest thing that turns a method into an ICommand, so the window's
+/// two KeyBindings can point at the same handlers the chrome bar's buttons
+/// use. There is no view model involved and nothing to enable or disable --
+/// both actions no-op when the pane is closed.
+/// </summary>
+internal sealed class RelayCommand(Action execute) : ICommand
+{
+    public event EventHandler? CanExecuteChanged
+    {
+        add { }
+        remove { }
+    }
+
+    public bool CanExecute(object? parameter) => true;
+
+    public void Execute(object? parameter) => execute();
 }

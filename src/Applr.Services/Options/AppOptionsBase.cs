@@ -1,4 +1,4 @@
-namespace Applr.Services.Options;
+﻿namespace Applr.Services.Options;
 
 /// <summary>
 /// Base for bindable configuration-section options classes. Currently just
@@ -9,9 +9,11 @@ namespace Applr.Services.Options;
 public abstract class AppOptionsBase
 {
     /// <summary>
-    /// Not currently called by anything. Reserved for a future shared
-    /// validation/registration path; override when there's something
-    /// worth checking.
+    /// Called by whoever binds the section, immediately after binding, so a
+    /// bad value fails at startup next to the section name rather than much
+    /// later at the point of use. Override when there's something worth
+    /// checking; the base no-op is the right answer for a section whose
+    /// values are all independently valid.
     /// </summary>
     public virtual void Validate()
     {

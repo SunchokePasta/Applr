@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build"
   },
   "dependencies": {
+    "@tanstack/react-table": "^9.2.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

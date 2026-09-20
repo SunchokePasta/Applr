@@ -1,74 +1,182 @@
+/*
+  One green, used for one thing.
+
+  The HIG's first rule on colour is "avoid using the same color to mean
+  different things" (color.md > Best practices). The old sheet spent sage on
+  the wordmark, the buttons and the links alike, so the accent said
+  "interactive" and "heading" at once and the app still read blue-grey
+  underneath. Here the green is the accent -- interactive and selected, and
+  nothing else -- and the neutrals are warmed towards it so the window reads
+  green without the accent having to shout.
+*/
 :root {
   color-scheme: light;
   font-family: "Segoe UI", system-ui, sans-serif;
-  color: #172033;
-  background: #f5f7fb;
-  --sage: #4f7049;
-  --sage-dark: #3d5934;
-  --sage-focus: #6a8a67;
+
+  --accent: #4f7049;
+  --accent-pressed: #3d5934;
+  --accent-focus: #6a8a67;
+  --accent-tint: #e3eede;
+  --accent-tint-strong: #c9dcc3;
+  --accent-wash: #f2f7f0;
+
+  --bg: #f4f7f3;
+  --surface: #ffffff;
+  --surface-sunken: #fafcf9;
+  --border: #d7e2d4;
+  --border-soft: #e8efe6;
+
+  /* Three weights of label, as the HIG's colour hierarchy has them: primary
+     for content, secondary for the things that frame it, tertiary for marks
+     that carry no meaning on their own. */
+  --label: #1b2a1f;
+  --label-secondary: #55695c;
+  --label-tertiary: #7b8c80;
+
+  --danger: #b3453a;
+  --danger-pressed: #93362d;
+  --danger-tint: #fff7f6;
+  --danger-border: #e7bcb6;
+  --danger-label: #7d2b23;
+
+  --radius: 12px;
+  --radius-small: 8px;
+
+  color: var(--label);
+  background: var(--bg);
 }
 * { box-sizing: border-box; }
 body { margin: 0; }
 
-.intro-screen { align-items: center; background: #f5f7fb; display: flex; flex-direction: column; gap: 18px; inset: 0; justify-content: center; position: fixed; transition: opacity 360ms ease, visibility 360ms ease; z-index: 1; }
+.intro-screen { align-items: center; background: var(--bg); display: flex; flex-direction: column; gap: 18px; inset: 0; justify-content: center; position: fixed; transition: opacity 360ms ease, visibility 360ms ease; z-index: 1; }
 .intro-screen.is-hidden { opacity: 0; pointer-events: none; visibility: hidden; }
-.wordmark { color: var(--sage); display: flex; font-family: "Segoe UI", system-ui, sans-serif; font-size: clamp(56px, 10vw, 120px); font-weight: 600; letter-spacing: .03em; margin: 0; }
+.wordmark { color: var(--accent); display: flex; font-family: "Segoe UI", system-ui, sans-serif; font-size: clamp(56px, 10vw, 120px); font-weight: 600; letter-spacing: .03em; margin: 0; }
 .wordmark span { animation: letter-drop 650ms cubic-bezier(.2, .8, .2, 1) both; animation-delay: var(--letter-delay); display: inline-block; }
 @keyframes letter-drop { from { opacity: 0; transform: translateY(-70px); } to { opacity: 1; transform: translateY(0); } }
 
 .intro-dots { display: flex; gap: 8px; }
-.intro-dots span { background: var(--sage); border-radius: 50%; display: block; height: 9px; opacity: .25; width: 9px; animation: dot-pulse 1.05s ease-in-out infinite; }
+.intro-dots span { background: var(--accent); border-radius: 50%; display: block; height: 9px; opacity: .25; width: 9px; animation: dot-pulse 1.05s ease-in-out infinite; }
 .intro-dots span:nth-child(2) { animation-delay: .18s; }
 .intro-dots span:nth-child(3) { animation-delay: .36s; }
 @keyframes dot-pulse { 0%, 100% { opacity: .25; transform: scale(.8); } 40% { opacity: 1; transform: scale(1); } }
 
-.app-shell { max-width: 1320px; margin: 0 auto; opacity: 0; padding: 32px; transition: opacity 360ms ease; }
+.app-shell { max-width: 1320px; margin: 0 auto; opacity: 0; padding: 28px 32px 40px; transition: opacity 360ms ease; }
 .app-shell.is-visible { opacity: 1; }
+
 .page-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
-.eyebrow { margin: 0 0 6px; color: #52627c; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+.header-actions { align-items: center; display: flex; gap: 12px; }
 h1 {
   margin: 0;
-  font-size: 32px;
+  font-size: 30px;
   line-height: 1.15;
   font-family: "Trebuchet MS", "Segoe UI Semibold", "Century Gothic", "Segoe UI", system-ui, sans-serif;
   font-weight: 800;
   letter-spacing: -0.01em;
-  color: var(--sage);
+  /* The same green as the intro wordmark, so the app keeps one identity as
+     the splash hands over to the table -- this is the wordmark, not a
+     section heading, which is why it takes the brand colour. */
+  color: var(--accent);
 }
-.subtitle { margin: 8px 0 0; color: #52627c; }
-button { border: 0; border-radius: 8px; background: var(--sage); color: white; padding: 10px 16px; font: inherit; font-weight: 600; cursor: pointer; }
-button:hover:not(:disabled) { background: var(--sage-dark); }
-button:focus-visible { outline: 3px solid var(--sage-focus); outline-offset: 2px; }
+
+/* Search sits in the header beside Load jobs, which is the "primary
+   position" searching.md asks for, and filters both tables at once so there
+   is one place to look rather than one per section. */
+.search-field { align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; display: flex; gap: 6px; padding: 0 12px; }
+.search-field:focus-within { border-color: var(--accent-focus); box-shadow: 0 0 0 3px var(--accent-tint); }
+.search-icon { color: var(--label-tertiary); font-size: 16px; line-height: 1; }
+.search-field input { background: none; border: 0; color: inherit; font: inherit; font-size: 14px; outline: none; padding: 8px 0; width: 244px; }
+.search-field input::placeholder { color: var(--label-tertiary); }
+.search-field input::-webkit-search-cancel-button { cursor: pointer; }
+
+button { border: 0; border-radius: var(--radius-small); background: var(--accent); color: white; padding: 9px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+button:hover:not(:disabled) { background: var(--accent-pressed); }
+button:focus-visible { outline: 3px solid var(--accent-focus); outline-offset: 2px; }
 button:disabled { cursor: wait; opacity: .65; }
 
-.loading-panel { background: white; border: 1px solid #d9e0eb; border-radius: 12px; padding: 28px 24px; }
+.loading-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 24px; }
 .loading-panel p { margin: 0 0 16px; font-weight: 600; }
-.loading-track { background: #e9edf4; height: 6px; overflow: hidden; }
-.loading-track span { animation: loading-sweep 1.15s ease-in-out infinite; background: var(--sage); display: block; height: 100%; width: 42%; }
+.loading-track { background: var(--accent-tint); height: 6px; overflow: hidden; border-radius: 999px; }
+.loading-track span { animation: loading-sweep 1.15s ease-in-out infinite; background: var(--accent); display: block; height: 100%; width: 42%; border-radius: 999px; }
 @keyframes loading-sweep { from { transform: translateX(-110%); } to { transform: translateX(265%); } }
 
 /* A failed load, as distinct from a slow one. Deliberately not styled
    like the loading panel: it is terminal, it carries a reference id,
    and it offers the one action that makes sense. */
-.error-panel { background: #fff7f6; border: 1px solid #e7bcb6; border-left: 4px solid #b3453a; border-radius: 12px; padding: 20px 24px; }
-.error-message { margin: 0; color: #7d2b23; font-weight: 600; }
+.error-panel { background: var(--danger-tint); border: 1px solid var(--danger-border); border-left: 4px solid var(--danger); border-radius: var(--radius); padding: 20px 24px; }
+.error-message { margin: 0; color: var(--danger-label); font-weight: 600; }
 .error-reference { margin: 8px 0 16px; color: #8a5b55; font-size: 13px; }
 .error-reference code { background: #f6e5e2; border-radius: 4px; font-family: "Cascadia Mono", Consolas, monospace; padding: 2px 6px; user-select: all; }
-.error-panel button { background: #b3453a; }
-.error-panel button:hover:not(:disabled) { background: #93362d; }
+.error-panel button { background: var(--danger); }
+.error-panel button:hover:not(:disabled) { background: var(--danger-pressed); }
 .error-panel + .jobs-section { margin-top: 24px; }
 
-.jobs-section { background: white; border: 1px solid #d9e0eb; border-radius: 12px; overflow: hidden; }
+.jobs-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .jobs-section + .jobs-section { margin-top: 24px; }
-h2 { margin: 0; padding: 18px 20px; font-size: 18px; border-bottom: 1px solid #d9e0eb; }
+h2 { align-items: center; display: flex; gap: 10px; margin: 0; padding: 16px 20px; font-size: 16px; font-weight: 700; border-bottom: 1px solid var(--border); background: var(--accent-wash); }
+/* The count as a mark beside the name rather than "(4)" inside it, so the
+   heading stays a heading and the number can change without rewriting it. */
+.count { background: var(--accent-tint); border-radius: 999px; color: var(--accent-pressed); font-size: 12px; font-weight: 700; min-width: 22px; padding: 2px 8px; text-align: center; }
+
 .table-wrap { overflow: auto; }
 table { width: 100%; border-collapse: collapse; text-align: left; }
-th, td { padding: 13px 20px; border-bottom: 1px solid #e9edf4; vertical-align: top; }
-th { background: #f8faff; color: #52627c; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
-td a { color: var(--sage-dark); font-weight: 600; text-decoration: none; }
+th, td { padding: 12px 20px; vertical-align: top; }
+th { background: var(--surface-sunken); border-bottom: 1px solid var(--border); color: var(--label-secondary); font-size: 12px; font-weight: 700; letter-spacing: .04em; padding: 0; text-transform: uppercase; }
+th:not(:has(.column-sort)) { padding: 11px 20px; }
+
+/* Sorting is a button inside the heading, not a click handler on the cell:
+   it has to be reachable by Tab and announce itself, and aria-sort on the
+   th says which way it is currently ordered. lists-and-tables.md > Desktop
+   is the rule being followed -- click to sort, click again to reverse. */
+.column-sort { align-items: center; background: none; border-radius: 0; color: inherit; cursor: pointer; display: flex; font: inherit; gap: 6px; letter-spacing: inherit; padding: 11px 20px; text-transform: inherit; width: 100%; }
+.column-sort:hover:not(:disabled) { background: var(--accent-wash); color: var(--accent-pressed); }
+.column-sort:focus-visible { outline: 3px solid var(--accent-focus); outline-offset: -3px; }
+.sort-arrow { color: var(--accent); font-size: 9px; }
+
+/* Alternating rows, as lists-and-tables.md recommends for a multicolumn
+   table -- it is what lets the eye carry a value across five columns. */
+tbody tr:nth-child(even) { background: var(--surface-sunken); }
+tbody tr { border-bottom: 1px solid var(--border-soft); }
+tbody tr:last-child { border-bottom: 0; }
+tbody tr:hover { background: var(--accent-wash); }
+
+/*
+  Selection, not hover: it survives the pointer leaving and only moves when
+  another row takes it. focus-and-selection.md asks for the whole row to be
+  highlighted in the accent colour; a full-strength fill would make five
+  columns of data hard to read, so this is the tint plus an accent edge --
+  macOS makes the same distinction between emphasized and unemphasized
+  selection.
+*/
+tbody tr.is-selected,
+tbody tr.is-selected:hover,
+tbody tr.is-selected:nth-child(even) { background: var(--accent-tint); }
+tbody tr.is-selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+/* Deliberately no weight change: bolding a selected row's text reflows every
+   column width as selection moves, which reads as the table twitching. */
+tbody tr.is-selected td { color: var(--label); }
+
+td a { color: var(--accent); font-weight: 600; text-decoration: none; }
 td a:hover { text-decoration: underline; }
-tbody tr:last-child td { border-bottom: 0; }
-.empty-row td { color: #52627c; text-align: center; padding: 36px 20px; }
+td a:focus-visible { outline: 3px solid var(--accent-focus); outline-offset: 2px; border-radius: 3px; }
+.empty-row td { color: var(--label-secondary); text-align: center; padding: 36px 20px; }
+.empty-row:hover { background: none; }
+
+/* The dates are the reason the Apply column is pinned to a width below: left
+   to itself, a finished fill's count and badges widen that column until
+   "2026-09-11" wraps across two lines. */
+.cell-postedDate, .cell-closeDate, th:nth-child(4), th:nth-child(5) { white-space: nowrap; }
+
+/* Apply column. The cell stays a table-cell; the flex container inside it is
+   what lets a finished fill's count and badges wrap onto their own lines
+   instead of stretching the column. */
+.cell-apply { color: var(--accent-pressed); font-size: 14px; font-weight: 600; width: 232px; }
+.apply-stack { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; }
+.cell-apply button { font-size: 13px; padding: 6px 14px; }
+.apply-filled { white-space: nowrap; }
+.apply-note { background: var(--accent-tint); border: 1px solid var(--accent-tint-strong); border-radius: 999px; color: var(--accent-pressed); display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 10px; }
+.apply-note[title] { cursor: help; }
+.apply-error { background: var(--danger-tint); border: 1px solid var(--danger-border); border-left: 4px solid var(--danger); border-radius: 6px; color: var(--danger-label); flex-basis: 100%; font-size: 13px; font-weight: 600; padding: 6px 10px; }
+.apply-reference { background: #f6e5e2; border-radius: 4px; color: #8a5b55; display: inline-block; font-family: "Cascadia Mono", Consolas, monospace; font-size: 12px; padding: 2px 6px; user-select: all; }
 
 @media (prefers-reduced-motion: reduce) { .intro-screen, .app-shell { transition: none; } .wordmark span { animation: none; } .loading-track span { animation-duration: 2.5s; } .intro-dots span { animation: none; opacity: .6; } }
-@media (max-width: 640px) { .app-shell { padding: 20px; } .page-header { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 760px) { .app-shell { padding: 20px; } .page-header { align-items: stretch; flex-direction: column; } .header-actions { justify-content: space-between; } .search-field input { width: 100%; } }

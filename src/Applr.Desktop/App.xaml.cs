@@ -5,6 +5,8 @@ using Applr.Desktop.ViewModels;
 using Applr.DesktopServices.Clients;
 using Applr.DesktopServices.Interfaces;
 using Applr.Services.Diagnostics;
+using Applr.Services.Options;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -71,6 +73,38 @@ public partial class App : System.Windows.Application
                             // user still cares.
                             client.Timeout = TimeSpan.FromSeconds(30);
                         });
+
+                    // ApplrFiller is a separate local service, not another
+                    // Applr.API route, so it needs its own client and base
+                    // address. The long timeout is not slack: the fill types
+                    // each character visibly, so a full form legitimately
+                    // takes minutes.
+                    services.AddHttpClient<IApplrFillerClient, ApplrFillerClient>(
+                        client =>
+                        {
+                            var fillerUrl = context.Configuration["ApplrFillerUrl"];
+
+                            if (string.IsNullOrWhiteSpace(fillerUrl))
+                            {
+                                throw new InvalidOperationException(
+                                    "ApplrFillerUrl is not configured.");
+                            }
+
+                            client.BaseAddress = new Uri(fillerUrl);
+                            client.Timeout = TimeSpan.FromMinutes(5);
+                        });
+
+                    // Bound and validated here rather than read where it is
+                    // used, so a port outside the legal range or a pane
+                    // narrower than its own minimum stops the app at startup
+                    // with a named section -- instead of surfacing much later
+                    // as a preview pane that silently never opens.
+                    var jobPreviewOptions = context.Configuration
+                        .GetSection(JobPreviewOptions.SectionName)
+                        .Get<JobPreviewOptions>() ?? new JobPreviewOptions();
+
+                    jobPreviewOptions.Validate();
+                    services.AddSingleton(jobPreviewOptions);
 
                     services.AddSingleton<MainWindowViewModel>();
                     services.AddSingleton<MainWindow>();

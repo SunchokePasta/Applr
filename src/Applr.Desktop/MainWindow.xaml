@@ -6,38 +6,156 @@
         Height="650"
         Width="1200"
         MinHeight="450"
-        MinWidth="900">
+        MinWidth="900"
+        Background="#F4F7F3">
+
+    <Window.Resources>
+        <!--
+            The chrome bar's buttons. Flat and unbordered until pointed at,
+            because the bar frames a web page and a row of raised default
+            WPF buttons would read as part of that page's content.
+        -->
+        <Style x:Key="ChromeBarButton" TargetType="Button">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="#3D5934" />
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Margin" Value="2,0,0,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Surface"
+                                Background="Transparent"
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="#DCE8D8" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="#C5D9BF" />
+                            </Trigger>
+                            <!--
+                                Keyboard focus gets its own ring rather than
+                                borrowing the hover fill: a fill alone is not
+                                a focus indicator, and these are the only
+                                controls in the window that are not inside a
+                                WebView and reachable by Tab.
+                            -->
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="#DCE8D8" />
+                                <Setter TargetName="Surface" Property="BorderBrush" Value="#6A8A67" />
+                                <Setter TargetName="Surface" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>
             <!--
                 Job preview pane: collapsed (0-width) until a job link is
-                clicked, see MainWindow.xaml.cs. Its WebView2 runs on a
-                separate CoreWebView2Environment from ApplrWebView's (its
-                own user data folder) - kept isolated on purpose, since
-                this pane is expected to eventually host more than a
-                plain preview (the browser-use automation work discussed
-                for job-detail enrichment), not just share the main UI's
-                cookies/cache.
+                clicked or Apply is pressed, see MainWindow.xaml.cs. Its
+                WebView2 runs on a separate CoreWebView2Environment from
+                ApplrWebView's (its own user data folder) - kept isolated on
+                purpose, since this pane is expected to eventually host more
+                than a plain preview (the browser-use automation work
+                discussed for job-detail enrichment), not just share the main
+                UI's cookies/cache.
+
+                MinWidth stays 0 so the column can still collapse entirely;
+                the drag floor is enforced against JobPreviewOptions in code,
+                because a MinWidth here would fight the collapse.
             -->
             <ColumnDefinition x:Name="JobPreviewColumn" Width="0" />
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition x:Name="JobPreviewSplitterColumn" Width="0" />
+            <ColumnDefinition x:Name="ApplrColumn" Width="*" MinWidth="380" />
         </Grid.ColumnDefinitions>
 
-        <Grid Grid.Column="0">
-            <wv2:WebView2 x:Name="JobPreviewWebView" />
-            <Button x:Name="CloseJobPreviewButton"
-                    Content="&#x2715;"
-                    Click="CloseJobPreviewButton_Click"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Top"
-                    Width="32"
-                    Height="32"
-                    Margin="8"
-                    ToolTip="Close preview" />
+        <!--
+            Two rows, not an overlay. A WebView2 is an airspace-hostile
+            native surface: anything layered on top of it in the same cell is
+            painted over by the web content, which is why the old close
+            button was invisible on most pages. Giving the chrome its own
+            row puts it beside the WebView rather than above it, so it is
+            always visible and always clickable.
+        -->
+        <Grid x:Name="JobPreviewPane" Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0"
+                    Background="#F4F7F3"
+                    BorderBrush="#D7E2D4"
+                    BorderThickness="0,0,0,1"
+                    Padding="12,5,8,5">
+                <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button x:Name="ToggleJobPreviewFullScreenButton"
+                                Style="{StaticResource ChromeBarButton}"
+                                Content="&#xE740;"
+                                Click="ToggleJobPreviewFullScreenButton_Click"
+                                ToolTip="Full screen (F11)"
+                                AutomationProperties.Name="Full screen" />
+                        <Button x:Name="CloseJobPreviewButton"
+                                Style="{StaticResource ChromeBarButton}"
+                                Content="&#xE8BB;"
+                                Click="CloseJobPreviewButton_Click"
+                                ToolTip="Close preview (Esc)"
+                                AutomationProperties.Name="Close preview" />
+                    </StackPanel>
+
+                    <!--
+                        The address, not a title: it is the one thing that
+                        tells you which posting Apply is about to fill, and a
+                        redirect to somewhere unexpected is visible here
+                        before anything gets typed. Middle-trimmed so the
+                        host and the job id both survive a narrow pane.
+                    -->
+                    <TextBlock x:Name="JobPreviewAddress"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0"
+                               FontSize="12"
+                               Foreground="#55695C"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding RelativeSource={RelativeSource Self}, Path=Text}" />
+                </DockPanel>
+            </Border>
+
+            <wv2:WebView2 x:Name="JobPreviewWebView" Grid.Row="1" />
         </Grid>
 
-        <wv2:WebView2 x:Name="ApplrWebView" Grid.Column="1" />
+        <!--
+            Thin divider per the HIG, with a hit area wider than the line
+            itself: the rule says prefer a one-point divider, but a
+            one-pixel drag target is not usable, so the visible line is 1px
+            and the grab area around it is the column's full 6px.
+        -->
+        <Grid Grid.Column="1">
+            <Rectangle Width="1" HorizontalAlignment="Center" Fill="#D7E2D4" />
+            <GridSplitter x:Name="JobPreviewSplitter"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          ResizeDirection="Columns"
+                          ResizeBehavior="PreviousAndNext"
+                          Background="Transparent"
+                          Cursor="SizeWE"
+                          DragDelta="JobPreviewSplitter_DragDelta"
+                          Focusable="False"
+                          AutomationProperties.Name="Resize preview pane" />
+        </Grid>
+
+        <wv2:WebView2 x:Name="ApplrWebView" Grid.Column="2" />
     </Grid>
 
 </Window>

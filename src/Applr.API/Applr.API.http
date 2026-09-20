@@ -18,6 +18,13 @@ Accept: application/json
 
 ###
 
+### Get the latest 10 emails from Gmail (proxied through Applr.Services -> Gmail API).
+### Gmail auth is not wired yet, so expect a 502 from Gmail's 401 until it is.
+GET {{Applr.API_HostAddress}}/api/Gmail
+Accept: application/json
+
+###
+
 ### Promote a set of "new" jobs to "existing" by job id
 POST {{Applr.API_HostAddress}}/api/Trackr/jobs/promote-new
 Content-Type: application/json
